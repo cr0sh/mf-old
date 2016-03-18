@@ -5,6 +5,8 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+
+	"github.com/cr0sh/minfuck/mf"
 )
 
 const version = "0.1"
@@ -44,7 +46,7 @@ func b2m() {
 	}
 	ioutil.WriteFile(
 		os.Args[2][0:len(os.Args[2])-len(path.Ext(os.Args[2]))]+".mf",
-		[]byte(bfToMf(string(b), 4096)),
+		[]byte(mf.BfToMf(string(b), 4096)),
 		0644)
 }
 func run() {
@@ -57,12 +59,12 @@ func run() {
 		fmt.Println("파일 여는 중 오류:", err)
 		os.Exit(3)
 	}
-	vm, err := vmFile(f)
+	vm, err := mf.VMFile(f)
 	if err != nil {
 		fmt.Println("VM 준비 중 오류:", err)
 		os.Exit(4)
 	}
-	err = vm.run()
+	err = vm.Run()
 	if err != nil {
 		fmt.Printf("\n==================\n코드가 비정상 종료되었습니다: %s\n", err.Error())
 		os.Exit(2)

@@ -1,4 +1,4 @@
-package main
+package mf
 
 import (
 	"bytes"
@@ -12,63 +12,69 @@ import (
 const mfMagic = "\xff\x6d\x66\xfd"
 
 /*
-MinFuck binary 포맷
+FileData 구조체는 MinFuck 소스 코드의 메타데이터를 정의합니다.
 
-.mf 파일의 첫 4바이트는 Magic Byte(\xff\x6d\x66\xfd)입니다.
-다음 4바이트에 부호 없는 정수형으로 MinFuck VM에서 접근 가능한 최대 메모리 번지를 지정합니다.
-(단, 실제 OS에서는 최소 해당 값 * 8 + 24바이트 이상을 할당합니다.)
-다음 4바이트에는 부호 없는 정수형으로 코드의 크기를 명시합니다.
+ MinFuck binary 포맷
+
+ .mf 파일의 첫 4바이트는 Magic Byte(\xff\x6d\x66\xfd)입니다.
+ 다음 4바이트에 부호 없는 정수형으로 MinFuck VM에서 접근 가능한 최대 메모리 번지를 지정합니다.
+ (단, 실제 OS에서는 최소 해당 값 * 8 + 24바이트 이상을 할당합니다.)
+ 다음 4바이트에는 부호 없는 정수형으로 코드의 크기를 명시합니다.
 */
-type fileData struct {
+type FileData struct {
 	memsize uint32
 	code    []byte
 }
 
-func readFile(f *os.File) (fileData, error) {
+// ReadFile 함수는 주어진 파일로부터 정보를 읽어 MinFuck 파일 메타데이터로 변환합니다.
+func ReadFile(f *os.File) (FileData, error) {
 	f.Seek(0, 0)
 	magic := make([]byte, 4)
 	if _, err := f.Read(magic); err != nil {
-		return fileData{}, err
+		return FileData{}, err
 	}
 	if !bytes.Equal(magic, []byte(mfMagic)) {
-		return fileData{}, fmt.Errorf("잘못된 MinFuck Magic: 0x" + hex.EncodeToString(magic))
+		return FileData{}, fmt.Errorf("잘못된 MinFuck Magic: 0x" + hex.EncodeToString(magic))
 	}
 
 	membuf := make([]byte, 4)
 	if _, err := f.Read(membuf); err != nil {
-		return fileData{}, err
+		return FileData{}, err
 	}
 	memsize, n := binary.Uvarint(membuf)
 	if n <= 0 {
-		return fileData{}, fmt.Errorf("메모리 주소 제한 값이 잘못되었습니다")
+		return FileData{}, fmt.Errorf("메모리 주소 제한 값이 잘못되었습니다")
 	}
 
 	codebuf := make([]byte, 4)
 	if _, err := f.Read(codebuf); err != nil {
-		return fileData{}, err
+		return FileData{}, err
 	}
 	codesize, n := binary.Uvarint(codebuf)
 	if n <= 0 {
-		return fileData{}, fmt.Errorf("코드 길이 값이 잘못되었습니다")
+		return FileData{}, fmt.Errorf("코드 길이 값이 잘못되었습니다")
 	}
 
 	code := make([]byte, codesize)
 	if _, err := f.Read(code); err != nil {
-		return fileData{}, err
+		return FileData{}, err
 	}
 
-	return fileData{memsize: uint32(memsize), code: code}, nil
+	return FileData{memsize: uint32(memsize), code: code}, nil
 }
 
-func (f *fileData) toString() string {
+// String 함수는 FileData를 string으로 변환합니다.
+func (f *FileData) String() string {
 	buf := bytes.NewBuffer([]byte(mfMagic))
-	buf.Write(u32Bytes(f.memsize))
-	buf.Write(u32Bytes(uint32(len(f.code))))
+	buf.Write(U32Bytes(f.memsize))
+	buf.Write(U32Bytes(uint32(len(f.code))))
 	buf.Write(f.code)
 	return buf.String()
 }
 
 /*
+MinFuckVM 구조체는 MinFuck 코드를 구동하기 위한 가상 머신(VM) 환경을 정의합니다.
+
 MinFuck 코드 포맷
 
 MinFuck의 코드는 기본적으로 Brainfuck과 1:1로 변환이 가능합니다.
@@ -87,10 +93,10 @@ Brainfuck의 []+-<>., 코드를 크기를 줄이기 위해 nibble(1/2 byte) 사�
 
 니블코드의 첫 비트가 1인 경우, 다음의 8니블(4바이트)은 해당 코드를 반복하는 횟수를 표시합니다.
 타입은 부호 없는 32비트 정수형입니다.
-*/
 
-// TODO: 테스트 케이스 추가(HelloWorld)
-type minfuckVM struct {
+TODO: 테스트 케이스 추가(HelloWorld)
+*/
+type MinFuckVM struct {
 	code []byte
 	mem  []uint32
 	pc   uint32 // Program counter, 'nibble' offset
@@ -100,13 +106,14 @@ type minfuckVM struct {
 	In   io.Reader
 }
 
-func vmFile(f *os.File) (*minfuckVM, error) {
-	meta, err := readFile(f)
+// VMFile 함수는 주어진 MinFuck 소스 파일로부터 VM을 생성해 반환합니다.
+func VMFile(f *os.File) (*MinFuckVM, error) {
+	meta, err := ReadFile(f)
 	if err != nil {
 		return nil, err
 	}
 
-	vm := new(minfuckVM)
+	vm := new(MinFuckVM)
 	vm.mem = make([]uint32, meta.memsize*2+3)
 	for i := uint32(0); i < meta.memsize; i++ {
 		vm.mem[3+i*2] = i + 1 // Memory init
@@ -118,10 +125,10 @@ func vmFile(f *os.File) (*minfuckVM, error) {
 	return vm, nil
 }
 
-// run 함수는 VM이 종료될 때까지 구동합니다
-func (vm *minfuckVM) run() error {
+// Run 함수는 VM이 종료될 때까지 구동합니다
+func (vm *MinFuckVM) Run() error {
 	for {
-		err := vm.process()
+		err := vm.Process()
 		if err == io.EOF {
 			break
 		} else if err != nil {
@@ -131,8 +138,8 @@ func (vm *minfuckVM) run() error {
 	return nil
 }
 
-// process 함수는 단일 MinFuck operation을 처리합니다.
-func (vm *minfuckVM) process() error {
+// Process 함수는 단일 MinFuck operation을 처리합니다.
+func (vm *MinFuckVM) Process() error {
 	c, err := vm.nibble()
 	if err != nil {
 		return err
@@ -143,16 +150,16 @@ func (vm *minfuckVM) process() error {
 		if err != nil {
 			return err
 		}
-		rep = nibbleU32(nn)
+		rep = NibbleU32(nn)
 	}
 	for i := uint32(0); i < rep; i++ {
-		vm.runcode(c & 7)
+		vm.RunCode(c & 7)
 	}
 	return nil
 }
 
-// runcode 함수는 한 개의 니블코드를 VM에서 실행합니다
-func (vm *minfuckVM) runcode(nc byte) {
+// RunCode 함수는 한 개의 니블코드를 VM에서 실행합니다
+func (vm *MinFuckVM) RunCode(nc byte) {
 	switch nc {
 	case 0: // +
 		vm.mem[vm.mp]++
@@ -174,7 +181,7 @@ func (vm *minfuckVM) runcode(nc byte) {
 }
 
 // TODO: 테스트 케이스 추가
-func (vm *minfuckVM) nibble() (byte, error) {
+func (vm *MinFuckVM) nibble() (byte, error) {
 	if vm.pc>>1 >= uint32(len(vm.code)) {
 		return 0, io.EOF
 	}
@@ -184,7 +191,7 @@ func (vm *minfuckVM) nibble() (byte, error) {
 }
 
 // TODO: 테스트 케이스 추가
-func (vm *minfuckVM) nibbleN(n uint32) ([]byte, error) {
+func (vm *MinFuckVM) nibbleN(n uint32) ([]byte, error) {
 	b := make([]byte, n)
 	var err error
 	for i := uint32(0); i < n; i++ {
