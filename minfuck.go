@@ -27,12 +27,14 @@ func main() {
 	case "run":
 		run()
 	default:
+		fmt.Println("정의되지 않은 동작:", os.Args[1])
 		help()
 	}
 }
 
 func b2m() {
 	if len(os.Args) < 3 {
+		fmt.Println("변환할 Brainfuck 소스 파일이 필요합니다.")
 		help()
 	}
 	b, err := ioutil.ReadFile(os.Args[2])
@@ -47,6 +49,7 @@ func b2m() {
 }
 func run() {
 	if len(os.Args) < 3 {
+		fmt.Println("실행할 MinFuck 코드가 필요합니다.")
 		help()
 	}
 	f, err := os.Open(os.Args[2])
