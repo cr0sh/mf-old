@@ -1,5 +1,7 @@
 package mf
 
+import "io"
+
 // NibbleU32 함수는 8개의 니블 배열을 부호 없는 32비트 정수형으로 변환합니다
 // 주의: 슬라이스의 길이가 8 미만일 경우 panic이 발생합니다.
 // TODO: 테스트 케이스 추가
@@ -30,7 +32,7 @@ func BfToMf(bf string, mem uint32) (mf string) {
 	}())}
 	odd := false
 	for i := 0; i < len(bf); i++ {
-		m := bfOp(bf[i : i+1])
+		m := FromBf(bf[i : i+1])
 		if m > 0xf {
 			continue
 		}
@@ -44,8 +46,9 @@ func BfToMf(bf string, mem uint32) (mf string) {
 	return
 }
 
+// FromBf 함수는 Brainfuck 코드를 MinFuck 코드로 변환합니다.
 // TODO: 테스트 케이스 추가(BF 코드 아닌 경우 escape)
-func bfOp(bf string) (mf byte) {
+func FromBf(bf string) (mf byte) {
 	switch bf {
 	case "+":
 		return 0
@@ -65,4 +68,52 @@ func bfOp(bf string) (mf byte) {
 		return 7
 	}
 	return 255
+}
+
+// ToBf 함수는 MinFuck 코드를 BrainFuck 코드로 변환합니다.
+func ToBf(mf byte) (p string) {
+	switch mf {
+	case 0:
+		p = "+"
+	case 1:
+		p = "-"
+	case 2:
+		p = ">"
+	case 3:
+		p = "<"
+	case 4:
+		p = "["
+	case 5:
+		p = "]"
+	case 6:
+		p = "."
+	case 7:
+		p = ","
+	}
+	return p
+}
+
+// IOStream 구조체는 stdin/stdout을 에뮬레이션합니다.
+// 주로 디버깅에 사용됩니다.
+type IOStream struct {
+	Stdin  string
+	Stdout string
+	offset uint64
+}
+
+// Read 메서드는 io.Reader 인터페이스를 구현합니다.
+// MinFuck VM의 Stdin을 에뮬레이션합니다.
+func (i *IOStream) Read(b []byte) (int, error) {
+	if i.offset >= uint64(len(i.Stdin)) {
+		return 0, io.EOF
+	}
+	n := copy(b, []byte(i.Stdin[i.offset:]))
+	return n, nil
+}
+
+// Write 메서드는 io.Writer 인터페이스를 구현합니다.
+// MinFuck VM의 Stdout을 에뮬레이션합니다.
+func (i *IOStream) Write(b []byte) (int, error) {
+	i.Stdout += string(b)
+	return len(b), nil
 }

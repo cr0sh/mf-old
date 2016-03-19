@@ -27,8 +27,7 @@ type FileData struct {
 }
 
 // ReadFile 함수는 주어진 파일로부터 정보를 읽어 MinFuck 파일 메타데이터로 변환합니다.
-func ReadFile(f *os.File) (FileData, error) {
-	f.Seek(0, 0)
+func ReadFile(f io.Reader) (FileData, error) {
 	magic := make([]byte, 4)
 	if _, err := f.Read(magic); err != nil {
 		return FileData{}, err
@@ -63,7 +62,7 @@ func ReadFile(f *os.File) (FileData, error) {
 	return FileData{memsize: uint32(memsize), code: code}, nil
 }
 
-// String 함수는 FileData를 string으로 변환합니다.
+// String 메서드는 FileData를 string으로 변환합니다.
 func (f *FileData) String() string {
 	buf := bytes.NewBuffer([]byte(mfMagic))
 	buf.Write(U32Bytes(f.memsize))
@@ -97,48 +96,59 @@ MinFuckVM 구조체는 MinFuck 코드를 구동하기 위한 가상 머신(VM) �
 TODO: 테스트 케이스 추가(HelloWorld)
 */
 type MinFuckVM struct {
-	code []byte
-	mem  []uint32
+	Code []byte
+	Mem  []uint32
 	pc   uint32 // Program counter, 'nibble' offset
 	mp   uint32 // Memory offset
 	bs   uint32 // Braces stack
+	ts   uint32 // Target stack to match braces
+	bt   byte   // Braces status; 0: nothing, 1: searching ']', 2: searching '['
 	Out  io.Writer
 	In   io.Reader
 }
 
 // VMFile 함수는 주어진 MinFuck 소스 파일로부터 VM을 생성해 반환합니다.
-func VMFile(f *os.File) (*MinFuckVM, error) {
+func VMFile(f io.Reader) (*MinFuckVM, error) {
 	meta, err := ReadFile(f)
 	if err != nil {
 		return nil, err
 	}
 
 	vm := new(MinFuckVM)
-	vm.mem = make([]uint32, meta.memsize*2+3)
+	vm.Mem = make([]uint32, meta.memsize*2+3)
 	for i := uint32(0); i < meta.memsize; i++ {
-		vm.mem[3+i*2] = i + 1 // Memory init
+		vm.Mem[3+i*2] = i + 1 // Memory init
 	}
 
-	vm.code = meta.code
+	vm.Code = meta.code
 	vm.Out, vm.In = os.Stdout, os.Stdin
 
 	return vm, nil
 }
 
-// Run 함수는 VM이 종료될 때까지 구동합니다
-func (vm *MinFuckVM) Run() error {
+// Run 메서드는 VM이 종료될 때까지 구동합니다.
+// VM을 강제로 멈추려면 stop 채널에 신호를 보냅니다.
+// VM이 실행을 마치면 에러 여부를 report 채널에 보고합니다.
+func (vm *MinFuckVM) Run(stop <-chan struct{}, report chan<- error) {
 	for {
-		err := vm.Process()
-		if err == io.EOF {
-			break
-		} else if err != nil {
-			return err
+		select {
+		case <-stop:
+			report <- nil
+			return
+		default:
+			err := vm.Process()
+			if err == io.EOF {
+				report <- nil
+				return
+			} else if err != nil {
+				report <- err
+				return
+			}
 		}
 	}
-	return nil
 }
 
-// Process 함수는 단일 MinFuck operation을 처리합니다.
+// Process 메서드는 단일 MinFuck operation을 처리합니다.
 func (vm *MinFuckVM) Process() error {
 	c, err := vm.nibble()
 	if err != nil {
@@ -160,37 +170,73 @@ func (vm *MinFuckVM) Process() error {
 
 // RunCode 함수는 한 개의 니블코드를 VM에서 실행합니다
 func (vm *MinFuckVM) RunCode(nc byte) {
-	switch nc {
-	case 0: // +
-		vm.mem[vm.mp]++
-	case 1: // -
-		vm.mem[vm.mp]--
-	case 2: // >
-		vm.mp = (vm.mp + 1) % uint32(len(vm.mem))
-	case 3: // <
-		vm.mp = (vm.mp - 1) % uint32(len(vm.mem))
-	case 4: // [ TODO
-	case 5: // ] TODO
-	case 6: // .
-		vm.Out.Write([]byte{byte(vm.mem[vm.mp])})
-	case 7: // ,
-		b := make([]byte, 1)
-		vm.In.Read(b)
-		vm.mem[vm.mp] = uint32(b[0])
+	if vm.bracketCheck(nc) {
+		// vm.dump()
+		switch nc {
+		case 0: // +
+			vm.Mem[vm.mp]++
+		case 1: // -
+			vm.Mem[vm.mp]--
+		case 2: // >
+			vm.mp = (vm.mp + 1) % uint32(len(vm.Mem))
+		case 3: // <
+			vm.mp = (vm.mp - 1) % uint32(len(vm.Mem))
+		case 6: // .
+			vm.Out.Write([]byte{byte(vm.Mem[vm.mp])})
+		case 7: // ,
+			b := make([]byte, 1)
+			vm.In.Read(b)
+			vm.Mem[vm.mp] = uint32(b[0])
+		}
 	}
 }
 
-// TODO: 테스트 케이스 추가
+// bracketCheck 메서드는 VM이 맞는 대괄호 짝을 찾는 중일 때 코드를 실행하지 않도록 합니다.
+func (vm *MinFuckVM) bracketCheck(nc byte) bool {
+	if vm.bt == 0 {
+		if nc == 4 && vm.Mem[vm.mp] == 0 {
+			vm.bt, vm.ts = 1, vm.bs
+			return false
+		} else if nc == 5 && vm.Mem[vm.mp] != 0 {
+			vm.bt, vm.ts = 2, vm.bs
+			vm.pc -= 2
+			return false
+		}
+		return true
+	} else if vm.bt == 1 {
+		vm.bracketStack(nc)
+		return false
+	} else {
+		vm.pc -= 2
+		vm.bracketStack(nc)
+		return false
+	}
+}
+
+// bracketStack 메서드는 대괄호 스택을 조정합니다
+func (vm *MinFuckVM) bracketStack(nc byte) {
+	if nc == 4 {
+		vm.bs++
+	} else if nc == 5 {
+		if vm.bs == 0 {
+			panic("Invalid loop brackets")
+		}
+		vm.bs--
+	}
+	if vm.ts == vm.bs {
+		vm.bt = 0
+	}
+}
+
 func (vm *MinFuckVM) nibble() (byte, error) {
-	if vm.pc>>1 >= uint32(len(vm.code)) {
+	if vm.pc>>1 >= uint32(len(vm.Code)) {
 		return 0, io.EOF
 	}
-	n := vm.code[vm.pc>>1] >> (vm.pc & 1)
+	n := (vm.Code[vm.pc>>1] >> (((vm.pc & 1) ^ 1) << 2)) & 0xf
 	vm.pc++
 	return n, nil
 }
 
-// TODO: 테스트 케이스 추가
 func (vm *MinFuckVM) nibbleN(n uint32) ([]byte, error) {
 	b := make([]byte, n)
 	var err error
@@ -201,4 +247,15 @@ func (vm *MinFuckVM) nibbleN(n uint32) ([]byte, error) {
 		}
 	}
 	return b, nil
+}
+
+func (vm *MinFuckVM) dump() {
+	fmt.Printf(`VM Status Dump
+    PC: %d
+    MP: %d
+    BS: %d
+    TS: %d
+    BT: %d
+
+`, vm.pc, vm.mp, vm.bs, vm.ts, vm.bt)
 }
