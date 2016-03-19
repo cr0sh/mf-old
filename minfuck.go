@@ -72,6 +72,7 @@ func run() {
 		fmt.Println("VM 준비 중 오류:", err)
 		os.Exit(4)
 	}
+	f.Close()
 	result := make(chan error, 1)
 	vm.Run(nil, result)
 	if err := <-result; err != nil {
