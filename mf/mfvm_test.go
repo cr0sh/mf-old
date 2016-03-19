@@ -97,7 +97,7 @@ var nTestEntries = []struct {
 
 func TestNibble(t *testing.T) {
 	for n, test := range nTestEntries {
-		vm := &MinFuckVM{code: test.code}
+		vm := &MinFuckVM{Code: test.code}
 		gets := make([]byte, test.read)
 		for i := 0; i < test.read; i++ {
 			var err error
@@ -139,7 +139,7 @@ var nnTestEntries = []struct {
 	{
 		code: []byte{0xff, 0xa0, 0xf3, 0xaf},
 		read: []int{3, 3, 2},
-		gets: {[]byte{0xf, 0xf, 0xa}, []byte{0x0, 0xf, 0x3}, []byte{0xa, 0xf}},
+		gets: [][]byte{{0xf, 0xf, 0xa}, {0x0, 0xf, 0x3}, {0xa, 0xf}},
 	},
 	{
 		code: []byte{0xff, 0xa0, 0xf3, 0xaf},
@@ -160,7 +160,7 @@ var nnTestEntries = []struct {
 
 func TestNibbleN(t *testing.T) {
 	for n, test := range nnTestEntries {
-		vm := &MinFuckVM{code: test.code}
+		vm := &MinFuckVM{Code: test.code}
 		for i, r := range test.read {
 			g, err := vm.nibbleN(uint32(r))
 			if err != nil {

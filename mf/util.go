@@ -12,6 +12,11 @@ func NibbleU32(nb []byte) uint32 {
 		uint32(nb[6]&0xf)<<4 | uint32(nb[7]&0xf)
 }
 
+// BytesU32 함수는 바이트 슬라이스를 부호 없는 32비트 정수로 변환합니다
+func BytesU32(b []byte) uint32 {
+	return uint32(b[0])<<24 | uint32(b[1])<<16 | uint32(b[2])<<8 | uint32(b[3])
+}
+
 // U32Bytes 함수는 부호 없는 32비트 정수를 바이트 슬라이스로 변환합니다.
 func U32Bytes(n uint32) []byte {
 	return []byte{byte(n >> 24), byte(n >> 16), byte(n >> 8), byte(n)}

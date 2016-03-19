@@ -2,7 +2,6 @@ package mf
 
 import (
 	"bytes"
-	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -40,26 +39,17 @@ func ReadFile(f io.Reader) (FileData, error) {
 	if _, err := f.Read(membuf); err != nil {
 		return FileData{}, err
 	}
-	memsize, n := binary.Uvarint(membuf)
-	if n <= 0 {
-		return FileData{}, fmt.Errorf("메모리 주소 제한 값이 잘못되었습니다")
-	}
 
 	codebuf := make([]byte, 4)
 	if _, err := f.Read(codebuf); err != nil {
 		return FileData{}, err
 	}
-	codesize, n := binary.Uvarint(codebuf)
-	if n <= 0 {
-		return FileData{}, fmt.Errorf("코드 길이 값이 잘못되었습니다")
-	}
-
-	code := make([]byte, codesize)
+	code := make([]byte, BytesU32(codebuf))
 	if _, err := f.Read(code); err != nil {
 		return FileData{}, err
 	}
 
-	return FileData{memsize: uint32(memsize), code: code}, nil
+	return FileData{memsize: uint32(BytesU32(membuf)), code: code}, nil
 }
 
 // String 메서드는 FileData를 string으로 변환합니다.
@@ -106,7 +96,7 @@ type MinFuckVM struct {
 	In   io.Reader
 }
 
-// VMFile 함수는 주어진 MinFuck 소스 파일로부터 VM을 생성해 반환합니다.
+// VMFile 함수는 주어진 MinFuck 소스 스트림으로부터 VM을 생성해 반환합니다.
 func VMFile(f io.Reader) (*MinFuckVM, error) {
 	meta, err := ReadFile(f)
 	if err != nil {
@@ -126,7 +116,7 @@ func VMFile(f io.Reader) (*MinFuckVM, error) {
 }
 
 // Run 메서드는 VM이 종료될 때까지 구동합니다.
-// VM을 강제로 멈추려면 stop 채널에 신호를 보냅니다.
+// VM을 강제로 멈추려면 stop 채널에 신호를 보냅니다. 이 경우 VM 종료는 에러로 간주됩니다.
 // VM이 실행을 마치면 에러 여부를 report 채널에 보고합니다.
 func (vm *MinFuckVM) Run(stop <-chan struct{}, report chan<- error) {
 	for {

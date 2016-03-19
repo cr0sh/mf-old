@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"strconv"
 	"time"
 
 	"github.com/cr0sh/minfuck/mf"
@@ -15,7 +16,7 @@ const version = "0.1"
 const mainHelp = `MinFuck 버전 %s
 도움말: %s [operation] option1, ...
 help: 지금 보고 있는 도움말을 출력합니다.
-b2m [filename]: 주어진 Brainfuck 코드를 MinFuck 코드로 변환합니다.
+b2m [filename] [mem]: 주어진 Brainfuck 코드를 MinFuck 코드로 변환합니다. mem은 할당할 메모리 주소의 최댓값이며, 기본값은 4096입니다.
 run [filename]: 주어진 MinFuck 코드를 구동합니다.
 bfr [filename]: 주어진 Brainfuck 코드를 구동합니다.
 `
@@ -40,8 +41,6 @@ func main() {
 }
 
 func b2m() {
-	fmt.Println("아직 사용할 수 없습니다") // FIXME
-	os.Exit(0)
 	if len(os.Args) < 3 {
 		fmt.Println("변환할 Brainfuck 소스 파일이 필요합니다.")
 		help()
@@ -51,9 +50,22 @@ func b2m() {
 		fmt.Println("파일 여는 중 오류:", err)
 		os.Exit(3)
 	}
+	mem := uint32(4096)
+	if len(os.Args) >= 4 {
+		n, err := strconv.ParseUint(os.Args[3], 10, 64)
+		if err != nil {
+			fmt.Println("메모리 주소 제한값이 잘못되었습니다.")
+			os.Exit(-1)
+		}
+		if n > 1<<32-1 {
+			fmt.Println("메모리 주소 제한값이 32비트를 초과합니다.")
+			os.Exit(-1)
+		}
+		mem = uint32(n)
+	}
 	ioutil.WriteFile(
 		os.Args[2][0:len(os.Args[2])-len(path.Ext(os.Args[2]))]+".mf",
-		[]byte(mf.BfToMf(string(b), 4096)),
+		[]byte(mf.BfToMf(string(b), mem)),
 		0644)
 }
 

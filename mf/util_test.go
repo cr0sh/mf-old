@@ -40,3 +40,34 @@ func TestNibbles(t *testing.T) {
 		}
 	}
 }
+
+var u32TestEntries = []struct {
+	bs  []byte
+	u32 uint32
+}{
+	{
+		bs:  []byte{0xff, 0xff, 0xff, 0xff},
+		u32: 1<<32 - 1,
+	},
+	{
+		bs:  []byte{0xde, 0xad, 0xbe, 0xef},
+		u32: 3735928559,
+	},
+	{
+		bs:  []byte{0, 0, 0, 0},
+		u32: 0,
+	},
+}
+
+func TestU32(t *testing.T) {
+	for n, test := range u32TestEntries {
+		if !bytes.Equal(test.bs, U32Bytes(test.u32)) {
+			t.Errorf("Test #%d failed: expected %v, got %v", n+1, test.bs, U32Bytes(test.u32))
+			return
+		}
+		if test.u32 != BytesU32(test.bs) {
+			t.Errorf("Test #%d failed: expected %d, got %d", n+1, test.u32, BytesU32(test.bs))
+			return
+		}
+	}
+}
