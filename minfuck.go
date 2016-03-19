@@ -14,11 +14,19 @@ import (
 
 const version = "0.1"
 const mainHelp = `MinFuck 버전 %s
-도움말: %s [operation] option1, ...
-help: 지금 보고 있는 도움말을 출력합니다.
-b2m [filename] [mem]: 주어진 Brainfuck 코드를 MinFuck 코드로 변환합니다. mem은 할당할 메모리 주소의 최댓값이며, 기본값은 4096입니다.
-run [filename]: 주어진 MinFuck 코드를 구동합니다.
-bfr [filename]: 주어진 Brainfuck 코드를 구동합니다.
+사용법: %s [operation] option1, ...
+
+help:
+    이 도움말을 출력합니다.
+
+b2m [filename] [mem]:
+    주어진 Brainfuck 코드를 MinFuck 코드로 변환합니다.
+    mem은 할당할 메모리 주소의 최댓값이며, 기본값은 4096입니다.
+
+run [filename]:
+    주어진 MinFuck 코드를 구동합니다.
+bfr [filename]:
+    주어진 Brainfuck 코드를 구동합니다.
 `
 
 func main() {
