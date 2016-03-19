@@ -8,6 +8,27 @@ MinFuck 구현의 주 목적은 `Polygon`을 비롯한 고수준 프로그래밍
 
 MinFuck 및 minfuck/mf 모듈은 MIT 허가서 하에서 배포됩니다.
 
+## MinFuck file format
+MinFuck 코드는 기본적으로 Brainfuck과 1:1로 변환이 가능합니다. (MinFuck 코드를 BrainFuck으로 완벽하게 변환할 수 있으나, 그 역은 메모리 크기 제한을 적절히 설정할 때에만 일부 참입니다.)
+
+Brainfuck의 []+-<>., 코드를 크기를 줄이기 위해 nibble(1/2 byte) 사이즈로 줄이고,
+단순 반복으로 인한 코드 크기 증가를 막기 위해 반복 압축을 추가했습니다.
+
+각 니블코드의 첫 비트를 제외하고, 뒤 7비트는 다음과 같은 의미를 가집니다:
+```
+0: Brainfuck의 + (주의: 메모리 셀은 Brainfuck과 다르게 32비트 부호 없는 정수형입니다. 오버플로가 일어날 수 있습니다.)
+1: Brainfuck의 -
+2: Brainfuck의 > (주의: >< 니블코드는 0 아래로 떨어지지 않습니다)
+3: Brainfuck의 <
+4: Brainfuck의 [ (주의: 0과 비교 시 byte로 캐스팅됩니다)
+5: Brainfuck의 ] (주의: 0과 비교 시 byte로 캐스팅됩니다)
+6: Brainfuck의 . (주의: 256의 나머지만을 계산하여 출력합니다)
+7: Brainfuck의 ,
+```
+
+니블코드의 첫 비트가 1인 경우, 다음의 8니블(4바이트)은 해당 코드를 반복하는 횟수를 표시합니다.
+타입은 부호 없는 32비트 정수형입니다.
+
 ## Usage
 ```
 사용법: minfuck [command] [option1 option2 ...]
