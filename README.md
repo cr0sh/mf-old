@@ -1,4 +1,4 @@
-# MinFuck [![GoDoc](https://godoc.org/github.com/cr0sh/minfuck/mf?status.svg)](https://godoc.org/github.com/cr0sh/minfuck/mf)
+# MinFuck [![GoDoc](https://godoc.org/github.com/cr0sh/minfuck/mf?status.svg)](https://godoc.org/github.com/cr0sh/minfuck/mf) [![Go Report Card](https://goreportcard.com/badge/github.com/cr0sh/minfuck/mf)](https://goreportcard.com/report/github.com/cr0sh/minfuck/mf)
 ---
 MinFuck은 Brainfuck에서 영감을 얻은 난해한 프로그래밍 언어입니다.
 
@@ -7,6 +7,12 @@ MinFuck은 Brainfuck에서 영감을 얻은 난해한 프로그래밍 언어입�
 MinFuck 구현의 주 목적은 `Polygon`을 비롯한 고수준 프로그래밍 언어에 대한 저수준 VM 기계어를 제공하는 것입니다.
 
 MinFuck 및 minfuck/mf 모듈은 MIT 허가서 하에서 배포됩니다.
+
+## Credits&Thanks
+먼저 `Brainfuck`이라는 멋진 언어를 만든 Urban Müller에게 감사드립니다.
+
+`helloworld.bf` 테스트 코드는 [esolangs.org](https://esolangs.org/wiki/Brainfuck)에서 제공되는 예제입니다.
+
 ```
 Copyright (c) 2016 cr0sh(Nam J.H.)(ska827@naver.com)
 
