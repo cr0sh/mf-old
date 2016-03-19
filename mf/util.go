@@ -13,35 +13,30 @@ func NibbleU32(nb []byte) uint32 {
 }
 
 // U32Bytes 함수는 부호 없는 32비트 정수를 바이트 슬라이스로 변환합니다.
-// TODO: 테스트 케이스 추가
 func U32Bytes(n uint32) []byte {
 	return []byte{byte(n >> 24), byte(n >> 16), byte(n >> 8), byte(n)}
 }
 
 // BfToMf 함수는 Brainfuck 코드를 MinFuck 코드로 변환합니다.
-// Brainfuck에는 사실상 memory address limit이 없기 때문에, 이는 수동으로 지정해야 합니다.
+// Brainfuck에는 사실상 memory address limit이 없기 때문에, 수동으로 지정해야 합니다.
 // TODO: 코드 반복 압축
-// TODO: 테스트 케이스 추가
 func BfToMf(bf string, mem uint32) (mf string) {
-	fd := FileData{memsize: mem, code: make([]byte, func() int {
-		l := len(bf)
-		if l&1 == 0 {
-			return l >> 1
-		}
-		return (l >> 1) + 1
-	}())}
-	odd := false
-	for i := 0; i < len(bf); i++ {
-		m := FromBf(bf[i : i+1])
-		if m > 0xf {
+	fd := FileData{memsize: mem}
+	nw := new(NibbleWriter)
+	for i := 0; i < 4; i++ {
+		nw.Put(2)
+	}
+	for _, b := range bf {
+		op := FromBf(string(b))
+		if op > 7 {
 			continue
 		}
-		if odd {
-			fd.code[i>>1] = (fd.code[i>>1] & 0xf0) | (m & 0xf)
-		} else {
-			fd.code[i>>1] = (m & 0xf) << 4
+		if op == 2 || op == 3 {
+			nw.Put(op) // Increment/Decrement pointer twice because MF uses another mem structure
 		}
+		nw.Put(op)
 	}
+	fd.code = nw.Nibbles
 	mf = fd.String()
 	return
 }
@@ -91,6 +86,27 @@ func ToBf(mf byte) (p string) {
 		p = ","
 	}
 	return p
+}
+
+// NibbleWriter 타입은 니블코드를 byte array로 변환해줍니다.
+type NibbleWriter struct {
+	Nibbles []byte
+	odd     bool
+}
+
+// Put 메서드는 니블코드를 byte array에 작성합니다.
+func (n *NibbleWriter) Put(nb byte) {
+	if len(n.Nibbles) == 0 {
+		n.Nibbles = []byte{(nb & 0xf) << 4}
+		n.odd = true
+	} else if n.odd {
+		n.Nibbles[len(n.Nibbles)-1] |= nb & 0xf
+		n.odd = false
+	} else {
+		b := (nb & 0xf) << 4
+		n.Nibbles = append(n.Nibbles, b)
+		n.odd = true
+	}
 }
 
 // IOStream 구조체는 stdin/stdout을 에뮬레이션합니다.
