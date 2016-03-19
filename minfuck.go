@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"time"
 
 	"github.com/cr0sh/minfuck/mf"
 )
@@ -74,10 +75,10 @@ func run() {
 	result := make(chan error, 1)
 	vm.Run(nil, result)
 	if err := <-result; err != nil {
-		fmt.Printf("\n==================\n코드가 비정상 종료되었습니다: %s\n", err.Error())
+		fmt.Printf("\n코드가 비정상 종료되었습니다: %s\n", err.Error())
 		os.Exit(2)
 	} else {
-		fmt.Printf("\n==================\n코드가 정상적으로 종료되었습니다\n")
+		fmt.Printf("\n코드가 정상적으로 종료되었습니다\n")
 		os.Exit(0)
 	}
 }
@@ -114,13 +115,18 @@ func bfr() {
 	}
 
 	vm := mf.MinFuckVM{Code: b.Bytes(), Mem: make([]uint32, 1<<20), Out: os.Stdout, In: os.Stdin}
-	result := make(chan error, 1)
-	vm.Run(nil, result)
+	stop, result := make(chan struct{}, 1), make(chan error, 1)
+	duration, _ := time.ParseDuration("10s")
+	time.AfterFunc(duration, func() {
+		fmt.Println("프로그램이 너무 길게 동작합니다. 강제로 종료합니다.")
+		stop <- struct{}{}
+	})
+	vm.Run(stop, result)
 	if err := <-result; err != nil {
-		fmt.Printf("\n==================\n코드가 비정상 종료되었습니다: %s\n", err.Error())
+		fmt.Printf("\n코드가 비정상 종료되었습니다: %s\n", err.Error())
 		os.Exit(2)
 	} else {
-		fmt.Printf("\n==================\n코드가 정상적으로 종료되었습니다\n")
+		fmt.Printf("\n코드가 정상적으로 종료되었습니다\n")
 		os.Exit(0)
 	}
 }

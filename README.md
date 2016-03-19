@@ -13,6 +13,8 @@ MinFuck 및 minfuck/mf 모듈은 MIT 허가서 하에서 배포됩니다.
 
 `helloworld.bf` 테스트 코드는 [esolangs.org](https://esolangs.org/wiki/Brainfuck)에서 제공되는 예제입니다.
 
+## License
+
 Copyright (c) 2016 cr0sh(Nam J.H.)(ska827@naver.com)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:

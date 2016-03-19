@@ -85,8 +85,8 @@ MinFuckVM 구조체는 MinFuck 코드를 구동하기 위한 가상 머신(VM) �
  1: Brainfuck의 -
  2: Brainfuck의 > (주의: >< 니블코드는 0 아래로 떨어지지 않습니다)
  3: Brainfuck의 <
- 4: Brainfuck의 [
- 5: Brainfuck의 ]
+ 4: Brainfuck의 [ (주의: 0과 비교 시 byte로 캐스팅됩니다)
+ 5: Brainfuck의 ] (주의: 0과 비교 시 byte로 캐스팅됩니다)
  6: Brainfuck의 . (주의: 256의 나머지만을 계산하여 출력합니다)
  7: Brainfuck의 ,
 
@@ -101,7 +101,6 @@ type MinFuckVM struct {
 	pc   uint32 // Program counter, 'nibble' offset
 	mp   uint32 // Memory offset
 	bs   uint32 // Braces stack
-	ts   uint32 // Target stack to match braces
 	bt   byte   // Braces status; 0: nothing, 1: searching ']', 2: searching '['
 	Out  io.Writer
 	In   io.Reader
@@ -133,7 +132,7 @@ func (vm *MinFuckVM) Run(stop <-chan struct{}, report chan<- error) {
 	for {
 		select {
 		case <-stop:
-			report <- nil
+			report <- fmt.Errorf("Interrupt")
 			return
 		default:
 			err := vm.Process()
@@ -156,7 +155,7 @@ func (vm *MinFuckVM) Process() error {
 	}
 	rep := uint32(1)
 	if (c>>3)&1 == 1 {
-		nn, err := vm.nibbleN(30)
+		nn, err := vm.nibbleN(8)
 		if err != nil {
 			return err
 		}
@@ -171,7 +170,6 @@ func (vm *MinFuckVM) Process() error {
 // RunCode 함수는 한 개의 니블코드를 VM에서 실행합니다
 func (vm *MinFuckVM) RunCode(nc byte) {
 	if vm.bracketCheck(nc) {
-		// vm.dump()
 		switch nc {
 		case 0: // +
 			vm.Mem[vm.mp]++
@@ -194,37 +192,41 @@ func (vm *MinFuckVM) RunCode(nc byte) {
 // bracketCheck 메서드는 VM이 맞는 대괄호 짝을 찾는 중일 때 코드를 실행하지 않도록 합니다.
 func (vm *MinFuckVM) bracketCheck(nc byte) bool {
 	if vm.bt == 0 {
-		if nc == 4 && vm.Mem[vm.mp] == 0 {
-			vm.bt, vm.ts = 1, vm.bs
+		if nc == 4 && byte(vm.Mem[vm.mp]) == 0 {
+			vm.bt = 1
 			return false
-		} else if nc == 5 && vm.Mem[vm.mp] != 0 {
-			vm.bt, vm.ts = 2, vm.bs
-			vm.pc -= 2
+		} else if nc == 5 && byte(vm.Mem[vm.mp]) != 0 {
+			vm.bt = 2
+			vm.pc--
 			return false
 		}
 		return true
 	} else if vm.bt == 1 {
-		vm.bracketStack(nc)
+		vm.bracketStack()
 		return false
 	} else {
-		vm.pc -= 2
-		vm.bracketStack(nc)
+		vm.bracketStack()
 		return false
 	}
 }
 
 // bracketStack 메서드는 대괄호 스택을 조정합니다
-func (vm *MinFuckVM) bracketStack(nc byte) {
-	if nc == 4 {
+func (vm *MinFuckVM) bracketStack() {
+	nc := (vm.Code[vm.pc>>1] >> (((vm.pc & 1) ^ 1) << 2)) & 0xf
+	if nc == 4 { // [
+		if vm.bs == 0 && vm.bt == 2 {
+			vm.bt = 0
+			return
+		}
 		vm.bs++
-	} else if nc == 5 {
-		if vm.bs == 0 {
-			panic("Invalid loop brackets")
+	} else if nc == 5 { // ]
+		if vm.bs == 0 && vm.bt == 1 {
+			vm.bt = 0
+			return
 		}
 		vm.bs--
-	}
-	if vm.ts == vm.bs {
-		vm.bt = 0
+	} else {
+		return
 	}
 }
 
@@ -233,7 +235,11 @@ func (vm *MinFuckVM) nibble() (byte, error) {
 		return 0, io.EOF
 	}
 	n := (vm.Code[vm.pc>>1] >> (((vm.pc & 1) ^ 1) << 2)) & 0xf
-	vm.pc++
+	if vm.bt == 2 {
+		vm.pc--
+	} else {
+		vm.pc++
+	}
 	return n, nil
 }
 
@@ -254,8 +260,7 @@ func (vm *MinFuckVM) dump() {
     PC: %d
     MP: %d
     BS: %d
-    TS: %d
     BT: %d
 
-`, vm.pc, vm.mp, vm.bs, vm.ts, vm.bt)
+`, vm.pc, vm.mp, vm.bs, vm.bt)
 }
