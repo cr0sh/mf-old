@@ -9,6 +9,14 @@ MinFuck 구현의 주 목적은 `Polygon`을 비롯한 고수준 프로그래밍
 MinFuck 및 minfuck/mf 모듈은 MIT 허가서 하에서 배포됩니다.
 
 ## MinFuck file format
+
+.mf 파일의 첫 4바이트는 Magic Byte(\xff\x6d\x66\xfd)입니다.
+
+다음 4바이트에 부호 없는 32비트 정수형으로 MinFuck VM에서 접근 가능한 최대 메모리 번지를 지정합니다.
+(단, 실제 OS에서는 최소 해당 값 * 8 + 24바이트 이상을 할당합니다.)
+
+그 다음 4바이트에는 부호 없는 32비트 정수형으로 코드의 크기를 명시합니다.
+
 MinFuck 코드는 기본적으로 Brainfuck과 1:1로 변환이 가능합니다. (MinFuck 코드를 BrainFuck으로 완벽하게 변환할 수 있으나, 그 역은 메모리 크기 제한을 적절히 설정할 때에만 일부 참입니다.)
 
 Brainfuck의 []+-<>., 코드를 크기를 줄이기 위해 nibble(1/2 byte) 사이즈로 줄이고,
