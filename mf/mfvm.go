@@ -17,7 +17,7 @@ FileData 구조체는 MinFuck 소스 코드의 메타데이터를 정의합니�
 
  .mf 파일의 첫 4바이트는 Magic Byte(\xff\x6d\x66\xfd)입니다.
  다음 4바이트에 부호 없는 32비트 정수형으로 MinFuck VM에서 접근 가능한 최대 메모리 번지를 지정합니다.
- (단, 실제 OS에서는 최소 해당 값 * 8 + 24바이트 이상을 할당합니다.)
+ (단, 실제 OS에서는 최소 해당 값 * 32 + 24바이트 이상을 할당합니다.)
  다음 4바이트에는 부호 없는 32비트 정수형으로 코드의 크기를 명시합니다.
 */
 type FileData struct {
@@ -98,6 +98,7 @@ type MinFuckVM struct {
 	mp   uint32 // Memory offset
 	bs   uint32 // Braces stack
 	bt   byte   // Braces status; 0: nothing, 1: searching ']', 2: searching '['
+	m32  bool   // Use 32-bit value for [] operations (false = BF compatiable)
 	Out  io.Writer
 	In   io.Reader
 }
@@ -116,7 +117,7 @@ func VMFile(f io.Reader) (*MinFuckVM, error) {
 	}
 
 	vm.Code = meta.code
-	vm.Out, vm.In = os.Stdout, os.Stdin
+	vm.Out, vm.In, vm.m32 = os.Stdout, os.Stdin, true
 
 	return vm, nil
 }
@@ -188,19 +189,35 @@ func (vm *MinFuckVM) RunCode(nc byte) {
 // bracketCheck 메서드는 VM이 맞는 대괄호 짝을 찾는 중일 때 코드를 실행하지 않도록 합니다.
 func (vm *MinFuckVM) bracketCheck(nc byte) bool {
 	if vm.bt == 0 {
-		if nc == 4 && byte(vm.Mem[vm.mp]) == 0 {
-			vm.bt = 1
-			return false
-		} else if nc == 5 && byte(vm.Mem[vm.mp]) != 0 {
-			vm.bt = 2
-			vm.pc--
-			return false
+		if nc == 4 {
+			if vm.m32 {
+				if vm.Mem[vm.mp] == 0 {
+					goto bkOpen
+				}
+			} else if byte(vm.Mem[vm.mp]) == 0 {
+				goto bkOpen
+			}
+		} else if nc == 5 {
+			if vm.m32 {
+				if vm.Mem[vm.mp] != 0 {
+					goto bkClose
+				}
+			} else if byte(vm.Mem[vm.mp]) != 0 {
+				goto bkClose
+			}
 		}
 		return true
 	} else {
 		vm.bracketStack()
 		return false
 	}
+bkOpen:
+	vm.bt = 1
+	return false
+bkClose:
+	vm.bt = 2
+	vm.pc--
+	return false
 }
 
 // bracketStack 메서드는 대괄호 스택을 조정합니다
