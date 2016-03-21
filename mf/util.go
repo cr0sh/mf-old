@@ -1,6 +1,10 @@
 package mf
 
-import "io"
+import (
+	"bytes"
+	"io"
+	"strings"
+)
 
 // NibbleU32 함수는 8개의 니블 배열을 부호 없는 32비트 정수형으로 변환합니다
 // 주의: 슬라이스의 길이가 8 미만일 경우 panic이 발생합니다.
@@ -22,10 +26,10 @@ func U32Bytes(n uint32) []byte {
 	return []byte{byte(n >> 24), byte(n >> 16), byte(n >> 8), byte(n)}
 }
 
-// BfToMf 함수는 Brainfuck 코드를 MinFuck 코드로 변환합니다.
+// FromBfCode 함수는 Brainfuck 코드를 MinFuck 코드로 변환합니다.
 // Brainfuck에는 사실상 memory address limit이 없기 때문에, 수동으로 지정해야 합니다.
 // TODO: 코드 반복 압축
-func BfToMf(bf string, mem uint32) (mf string) {
+func FromBfCode(bf string, mem uint32) (mf string) {
 	fd := FileData{memsize: mem}
 	nw := new(NibbleWriter)
 	for i := 0; i < 4; i++ {
@@ -43,6 +47,31 @@ func BfToMf(bf string, mem uint32) (mf string) {
 	}
 	fd.code = nw.Nibbles
 	mf = fd.String()
+	return
+}
+
+// ToBfCode 함수는 MinFuck 코드를  Brainfuck 코드로 변환합니다.
+func ToBfCode(mf string) (bf string) {
+	bf = "MinFuck>>>"
+
+	meta, err := ReadFile(bytes.NewBufferString(mf))
+	if err != nil {
+		panic(err)
+	}
+
+	for i := uint32(0); i < meta.memsize; i++ {
+		bf += strings.Repeat("+", int(i+1)) + ">>\n"
+	}
+	bf += strings.Repeat("<", int(meta.memsize)*2+3) + "\n"
+
+	for i, mb := range meta.code {
+		nb1, nb2 := (mb>>4)&0xf, mb&0xf
+		bf += ToBf(nb1)
+		if i != len(mf)-1 || meta.lastNibble {
+			bf += ToBf(nb2)
+		}
+	}
+
 	return
 }
 

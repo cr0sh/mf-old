@@ -21,8 +21,9 @@ FileData 구조체는 MinFuck 소스 코드의 메타데이터를 정의합니�
  다음 4바이트에는 부호 없는 32비트 정수형으로 코드의 크기를 명시합니다.
 */
 type FileData struct {
-	memsize uint32
-	code    []byte
+	memsize    uint32
+	code       []byte
+	lastNibble bool // 니블코드 개수가 짝수이면 true
 }
 
 // ReadFile 함수는 주어진 파일로부터 정보를 읽어 MinFuck 파일 메타데이터로 변환합니다.
@@ -44,12 +45,17 @@ func ReadFile(f io.Reader) (FileData, error) {
 	if _, err := f.Read(codebuf); err != nil {
 		return FileData{}, err
 	}
-	code := make([]byte, BytesU32(codebuf))
+	codelen := BytesU32(codebuf)
+	code := make([]byte, codelen)
 	if _, err := f.Read(code); err != nil {
 		return FileData{}, err
 	}
 
-	return FileData{memsize: uint32(BytesU32(membuf)), code: code}, nil
+	return FileData{
+		memsize:    uint32(BytesU32(membuf)),
+		code:       code,
+		lastNibble: codelen&1 == 0,
+	}, nil
 }
 
 // String 메서드는 FileData를 string으로 변환합니다.
@@ -191,9 +197,6 @@ func (vm *MinFuckVM) bracketCheck(nc byte) bool {
 			return false
 		}
 		return true
-	} else if vm.bt == 1 {
-		vm.bracketStack()
-		return false
 	} else {
 		vm.bracketStack()
 		return false

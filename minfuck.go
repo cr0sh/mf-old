@@ -23,8 +23,12 @@ b2m [filename] [mem]:
     주어진 Brainfuck 코드를 MinFuck 코드로 변환합니다.
     mem은 할당할 메모리 주소의 최댓값이며, 기본값은 4096입니다.
 
+m2b [filename]:
+	주어진 MinFuck 코드를 Brainfuck 코드로 변환합니다.
+
 run [filename]:
     주어진 MinFuck 코드를 구동합니다.
+
 bfr [filename]:
     주어진 Brainfuck 코드를 구동합니다.
 `
@@ -38,6 +42,8 @@ func main() {
 		help()
 	case "b2m":
 		b2m()
+	case "m2b":
+		m2b()
 	case "run":
 		run()
 	case "bfr":
@@ -73,7 +79,23 @@ func b2m() {
 	}
 	ioutil.WriteFile(
 		os.Args[2][0:len(os.Args[2])-len(path.Ext(os.Args[2]))]+".mf",
-		[]byte(mf.BfToMf(string(b), mem)),
+		[]byte(mf.FromBfCode(string(b), mem)),
+		0644)
+}
+
+func m2b() {
+	if len(os.Args) < 3 {
+		fmt.Println("변환할 MinFuck 소스 파일이 필요합니다.")
+		help()
+	}
+	b, err := ioutil.ReadFile(os.Args[2])
+	if err != nil {
+		fmt.Println("파일 여는 중 오류:", err)
+		os.Exit(3)
+	}
+	ioutil.WriteFile(
+		os.Args[2][0:len(os.Args[2])-len(path.Ext(os.Args[2]))]+".bf",
+		[]byte(mf.ToBfCode(string(b))),
 		0644)
 }
 
