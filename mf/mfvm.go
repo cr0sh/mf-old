@@ -99,8 +99,8 @@ type MinFuckVM struct {
 	bs   uint32 // Braces stack
 	bt   byte   // Braces status; 0: nothing, 1: searching ']', 2: searching '['
 	m32  bool   // Use 32-bit value for [] operations (false = BF compatiable)
-	Out  io.Writer
 	In   io.Reader
+	Out  io.Writer
 }
 
 // VMFile 함수는 주어진 MinFuck 소스 스트림으로부터 VM을 생성해 반환합니다.
@@ -150,15 +150,13 @@ func (vm *MinFuckVM) Process() error {
 	if err != nil {
 		return err
 	}
-	rep := uint32(1)
 	if (c>>3)&1 == 1 {
 		nn, err := vm.nibbleN(8)
 		if err != nil {
 			return err
 		}
-		rep = NibbleU32(nn)
-	}
-	for i := uint32(0); i < rep; i++ {
+		vm.RunCodeN(c&7, NibblesU32(nn))
+	} else {
 		vm.RunCode(c & 7)
 	}
 	return nil
@@ -173,9 +171,31 @@ func (vm *MinFuckVM) RunCode(nc byte) {
 		case 1: // -
 			vm.Mem[vm.mp]--
 		case 2: // >
-			vm.mp = (vm.mp + 1) % uint32(len(vm.Mem))
+			vm.mp = vm.mp + 1
 		case 3: // <
-			vm.mp = (vm.mp - 1) % uint32(len(vm.Mem))
+			vm.mp = vm.mp - 1
+		case 6: // .
+			vm.Out.Write([]byte{byte(vm.Mem[vm.mp])})
+		case 7: // ,
+			b := make([]byte, 1)
+			vm.In.Read(b)
+			vm.Mem[vm.mp] = uint32(b[0])
+		}
+	}
+}
+
+// RunCodeN 함수는 한 개의 니블코드를 N회 VM에서 실행합니다
+func (vm *MinFuckVM) RunCodeN(nc byte, n uint32) {
+	if vm.bracketCheck(nc) {
+		switch nc {
+		case 0: // +
+			vm.Mem[vm.mp] += n
+		case 1: // -
+			vm.Mem[vm.mp] -= n
+		case 2: // >
+			vm.mp = (vm.mp + n)
+		case 3: // <
+			vm.mp = (vm.mp - n)
 		case 6: // .
 			vm.Out.Write([]byte{byte(vm.Mem[vm.mp])})
 		case 7: // ,

@@ -7,8 +7,7 @@ import (
 )
 
 var nbTestEntries = []struct {
-	toWrite []byte
-	expect  []byte
+	toWrite, expect []byte
 }{
 	{
 		toWrite: []byte{0x1},
@@ -34,6 +33,68 @@ func TestNibbles(t *testing.T) {
 		for _, b := range test.toWrite {
 			nw.Put(b)
 		}
+		if !bytes.Equal(test.expect, nw.Nibbles) {
+			t.Errorf("Test #%d failed:\ngot      %s\nexpected %s", n+1, hex.EncodeToString(nw.Nibbles), hex.EncodeToString(test.expect))
+			return
+		}
+	}
+}
+
+var nboTestEntries = []struct {
+	toWrite, expect []byte
+}{
+	{
+		toWrite: []byte{0x1},
+		expect:  []byte{0x10},
+	},
+	{
+		toWrite: []byte{0xf, 0xf, 0xf, 0xf},
+		expect:  []byte{0xff, 0xff},
+	},
+	{
+		toWrite: []byte{0xf, 0x1, 0x3, 0xf},
+		expect:  []byte{0xf1, 0x3f},
+	},
+	{
+		toWrite: []byte{0xf, 0x1, 0x2},
+		expect:  []byte{0xf1, 0x20},
+	},
+	{
+		toWrite: []byte{0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1},
+		expect:  []byte{0x90, 0x00, 0x00, 0x00, 0x90},
+	},
+	{
+		toWrite: []byte{0x2, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1},
+		expect:  []byte{0x29, 0x00, 0x00, 0x00, 0x09},
+	},
+	{
+		toWrite: []byte{0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x2},
+		expect:  []byte{0x90, 0x00, 0x00, 0x00, 0x92},
+	},
+	{
+		toWrite: []byte{0x2, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x2},
+		expect:  []byte{0x29, 0x00, 0x00, 0x00, 0x09, 0x20},
+	},
+	{
+		toWrite: []byte{0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1,
+			0x2, 0x2, 0x2, 0x2, 0x2, 0x2, 0x2, 0x2},
+		expect: []byte{0x90, 0x00, 0x00, 0x00, 0x92, 0x22, 0x22, 0x22, 0x20},
+	},
+	{
+		toWrite: []byte{0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1,
+			0x2, 0x2, 0x2, 0x2, 0x2, 0x2, 0x2, 0x2, 0x2, 0x2},
+		expect: []byte{0x90, 0x00, 0x00, 0x00, 0x9a, 0x00, 0x00, 0x00, 0x0a},
+	},
+}
+
+func TestNibblesOptimized(t *testing.T) {
+	for n, test := range nboTestEntries {
+		nw := new(NibbleWriterOptimized)
+		nw.NibbleWriter = new(NibbleWriter)
+		for _, b := range test.toWrite {
+			nw.Put(b)
+		}
+		nw.Flush()
 		if !bytes.Equal(test.expect, nw.Nibbles) {
 			t.Errorf("Test #%d failed:\ngot      %s\nexpected %s", n+1, hex.EncodeToString(nw.Nibbles), hex.EncodeToString(test.expect))
 			return
@@ -67,6 +128,46 @@ func TestU32(t *testing.T) {
 		}
 		if test.u32 != BytesU32(test.bs) {
 			t.Errorf("Test #%d failed: expected %d, got %d", n+1, test.u32, BytesU32(test.bs))
+			return
+		}
+	}
+}
+
+var nuTestEntries = []struct {
+	n uint32
+	b []byte
+}{
+	{
+		3,
+		[]byte{0, 0, 0, 0, 0, 0, 0, 3},
+	},
+	{
+		52,
+		[]byte{0, 0, 0, 0, 0, 0, 3, 4},
+	},
+	{
+		256,
+		[]byte{0, 0, 0, 0, 0, 1, 0, 0},
+	},
+	{
+		^uint32(0),
+		[]byte{15, 15, 15, 15, 15, 15, 15, 15},
+	},
+}
+
+func TestNibblesU32(t *testing.T) {
+	for n, test := range nuTestEntries {
+		if test.n != NibblesU32(test.b) {
+			t.Errorf("Test #%d failed: expected %d, got %d", n+1, test.n, NibblesU32(test.b))
+			return
+		}
+	}
+}
+
+func TestU32Nibbles(t *testing.T) {
+	for n, test := range nuTestEntries {
+		if !bytes.Equal(test.b, U32Nibbles(test.n)) {
+			t.Errorf("Test #%d failed: expected %d, got %d", n+1, test.b, U32Nibbles(test.n))
 			return
 		}
 	}

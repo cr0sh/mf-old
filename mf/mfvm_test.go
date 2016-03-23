@@ -176,3 +176,23 @@ func TestNibbleN(t *testing.T) {
 		}
 	}
 }
+
+const hwBfCode = ">++++++++[-<+++++++++>]<.>>+>-[+]++>++>+++[>[->+++<<+++>]<<]>-----.>->+++..+++.>-.<<+[>[+>+]>>]<--------------.>>.+++.------.--------.>+.>+."
+
+type dummyIO struct{}
+
+func (d *dummyIO) Read(b []byte) (n int, err error) {
+	return
+}
+
+func (d *dummyIO) Write(b []byte) (n int, err error) {
+	return
+}
+
+func BenchmarkHelloWorld(b *testing.B) {
+	dio := new(dummyIO)
+	for i := 0; i < b.N; i++ {
+		vm := &MinFuckVM{Code: []byte(hwBfCode), Mem: make([]uint32, 64), In: dio, Out: dio}
+		vm.Run(nil, make(chan error, 1))
+	}
+}
