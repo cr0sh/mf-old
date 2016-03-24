@@ -186,7 +186,11 @@ func (vm *MinFuckVM) RunCode(nc byte) {
 
 // RunCodeN 함수는 한 개의 니블코드를 N회 VM에서 실행합니다
 func (vm *MinFuckVM) RunCodeN(nc byte, n uint32) {
-	if vm.bracketCheck(nc) {
+	var s bool
+	for i := uint32(0); i < n; i++ {
+		s = s && vm.bracketCheck(nc)
+	}
+	if s {
 		switch nc {
 		case 0: // +
 			vm.Mem[vm.mp] += n
@@ -242,7 +246,7 @@ bkClose:
 
 // bracketStack 메서드는 대괄호 스택을 조정합니다
 func (vm *MinFuckVM) bracketStack() {
-	nc := (vm.Code[vm.pc>>1] >> (((vm.pc & 1) ^ 1) << 2)) & 0xf
+	nc, _ := vm.nibbleRaw(vm.pc)
 	if nc == 4 { // [
 		if vm.bs == 0 && vm.bt == 2 {
 			vm.bt = 0
@@ -260,11 +264,19 @@ func (vm *MinFuckVM) bracketStack() {
 	}
 }
 
-func (vm *MinFuckVM) nibble() (byte, error) {
-	if vm.pc>>1 >= uint32(len(vm.Code)) {
+func (vm *MinFuckVM) nibbleRaw(pc uint32) (byte, error) {
+	if pc>>1 >= uint32(len(vm.Code)) {
 		return 0, io.EOF
 	}
-	n := (vm.Code[vm.pc>>1] >> (((vm.pc & 1) ^ 1) << 2)) & 0xf
+	n := (vm.Code[pc>>1] >> (((pc & 1) ^ 1) << 2)) & 0xf
+	return n, nil
+}
+
+func (vm *MinFuckVM) nibble() (byte, error) {
+	n, err := vm.nibbleRaw(vm.pc)
+	if err != nil {
+		return 0, err
+	}
 	if vm.bt == 2 {
 		vm.pc--
 	} else {

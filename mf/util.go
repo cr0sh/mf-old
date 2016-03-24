@@ -191,8 +191,103 @@ func (n *NibbleWriterOptimized) Flush() {
 	n.cnt = 0
 }
 
+// NibbleReader 구조체는 압축된 nibble slice에서 데이터를 읽습니다.
+type NibbleReader struct {
+	Data  []byte
+	off   uint32
+	stage struct {
+		Data []byte
+		rep  uint32
+		off  uint32
+	}
+}
+
+// AddOffset 메서드는 버퍼 오프셋을 증가/감소시킵니다.
+func (nr *NibbleReader) AddOffset(o int32) {
+	switch {
+	case o == 0:
+		return
+	case o < 0:
+		o := uint32(-o)
+		for o > 0 {
+			diff := o - (nr.stage.off + 1)
+			switch {
+			case diff == 0:
+				nr.off--
+				nr.restage()
+				return
+			case diff > 0:
+				o -= nr.stage.off + 1
+				nr.off--
+				nr.restage()
+			case diff < 0:
+				nr.stage.off -= o
+				return
+			}
+		}
+	case o > 0:
+		o := uint32(o)
+		for o > 0 {
+			diff := o - (nr.stage.rep - nr.stage.off)
+			switch {
+			case diff == 0:
+				nr.off++
+				nr.restage()
+				return
+			case diff > 0:
+				o -= nr.stage.rep - nr.stage.off
+				nr.off++
+				nr.restage()
+			case diff < 0:
+				nr.stage.off += o
+				return
+			}
+		}
+	}
+}
+
+// GetRaw 메서드는 주어진 오프셋에서 니블 한 개를 읽습니다.
+// 주의: 오프셋은 자동으로 증가되지 않습니다.
+func (nr *NibbleReader) GetRaw(off uint32) (byte, error) {
+	if off >= uint32(len(nr.Data)) {
+		return 0, io.EOF
+	}
+	return (nr.Data[off>>1] >> (((off & 1) ^ 1) << 2)) & 0xf, nil
+}
+
+// Get 메서드는 현재 오프셋에서 니블 하나를 읽습니다.
+// 만약 압축된 니블이면 길이 데이터 8니블을 추가로 읽습니다.
+// 주의: 오프셋은 자동으로 증가되지 않습니다.
+func (nr *NibbleReader) Get() ([]byte, error) {
+	n, err := nr.GetRaw(nr.off)
+	if err != nil {
+		return nil, err
+	}
+	if n>>3 == 1 {
+		b := []byte{n, 0, 0, 0, 0, 0, 0, 0, 0}
+		for i := uint32(1); i < uint32(9); i++ {
+			b[i], err = nr.GetRaw(nr.off + i)
+			if err != nil {
+				return nil, err
+			}
+		}
+		return b, nil
+	}
+	return []byte{n}, nil
+}
+
+func (nr *NibbleReader) restage() {
+	b, _ := nr.Get()
+	nr.stage.Data, nr.stage.off = b, 0
+	if len(b) == 1 {
+		nr.stage.rep = 1
+	} else {
+		nr.stage.rep = NibblesU32(b[1:])
+	}
+}
+
 // IOStream 구조체는 stdin/stdout을 에뮬레이션합니다.
-// 주로 디버깅에 사용됩니다.
+// 주로 디버깅/에뮬레이션에 사용됩니다.
 type IOStream struct {
 	Stdin  string
 	Stdout string
