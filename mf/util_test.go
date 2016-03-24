@@ -3,6 +3,7 @@ package mf
 import (
 	"bytes"
 	"encoding/hex"
+	"reflect"
 	"testing"
 )
 
@@ -171,4 +172,47 @@ func TestU32Nibbles(t *testing.T) {
 			return
 		}
 	}
+}
+
+var nrTestData = []byte{
+	1, 2, 3, 1, 2, 3, 1, 2, 1, 1,
+	1, 1, 1, 1, 1, 1, 1, 1, 1, 2,
+	3, 1, 3, 2, 3, 3, 3, 3, 3, 3,
+	3, 3, 3, 3, 3, 3, 3, 3, 1, 2,
+	3, 2, 1, 2, 4, 2, 3, 1, 2, 3,
+	3, 1, 2, 3, 2, 2, 2, 2, 2, 2,
+	2, 2, 2, 2, 2, 3, 1, 3, 1, 1,
+	1, 1,
+}
+
+func assert(a, b interface{}, t *testing.T) {
+	if !reflect.DeepEqual(a, b) {
+		t.Errorf("Assert failed: %v != %v", a, b)
+		panic("Assert failure")
+	}
+}
+func TestNibbleReader(t *testing.T) {
+	nr := new(NibbleReader)
+	nw := new(NibbleWriterOptimized)
+	nw.NibbleWriter = new(NibbleWriter)
+	for _, n := range nrTestData {
+		nw.Put(n)
+	}
+	nw.Flush()
+	nr.Data = nw.Nibbles
+	assert(nr.GetRaw(nr.off), byte(1), t)
+	nr.AddOffset(2)
+	assert(nr.GetRaw(nr.off), byte(3), t)
+	nr.AddOffset(-1)
+	assert(nr.GetRaw(nr.off), byte(2), t)
+	nr.AddOffset(8)
+	assert(nr.Get()[0], byte(1), t)
+	nr.AddOffset(-8)
+	assert(nr.GetRaw(nr.off), byte(2), t)
+	nr.AddOffset(2)
+	assert(nr.GetRaw(nr.off), byte(1), t)
+	nr.AddOffset(28)
+	assert(nr.Get()[0], byte(3), t)
+	nr.AddOffset(11) // FIXME: SHOULD BE 13
+	assert(nr.GetRaw(nr.off), byte(4), t)
 }

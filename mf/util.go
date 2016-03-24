@@ -48,6 +48,7 @@ func FromBfCode(bf string, mem uint32) (mf string) {
 	for i := 0; i < 4; i++ {
 		nw.Put(2)
 	}
+	nw.Flush()
 	for _, b := range bf {
 		op := FromBf(string(b))
 		if op > 7 {
@@ -196,7 +197,7 @@ type NibbleReader struct {
 	Data  []byte
 	off   uint32
 	stage struct {
-		Data []byte
+		data []byte
 		rep  uint32
 		off  uint32
 	}
@@ -210,17 +211,25 @@ func (nr *NibbleReader) AddOffset(o int32) {
 	case o < 0:
 		o := uint32(-o)
 		for o > 0 {
-			diff := o - (nr.stage.off + 1)
+			d := nr.stage.off + 1
 			switch {
-			case diff == 0:
-				nr.off--
+			case o == d:
+				if nr.off > 9 && nr.GetRaw(nr.off-9)>>3 == 1 {
+					nr.off -= 9
+				} else {
+					nr.off--
+				}
 				nr.restage()
 				return
-			case diff > 0:
-				o -= nr.stage.off + 1
-				nr.off--
+			case o > d:
+				o -= d
+				if nr.off > 9 && nr.GetRaw(nr.off-9)>>3 == 1 {
+					nr.off -= 9
+				} else {
+					nr.off--
+				}
 				nr.restage()
-			case diff < 0:
+			case o < d:
 				nr.stage.off -= o
 				return
 			}
@@ -228,17 +237,17 @@ func (nr *NibbleReader) AddOffset(o int32) {
 	case o > 0:
 		o := uint32(o)
 		for o > 0 {
-			diff := o - (nr.stage.rep - nr.stage.off)
+			d := nr.stage.rep - nr.stage.off
 			switch {
-			case diff == 0:
-				nr.off++
+			case o == d:
+				nr.off += uint32(len(nr.stage.data))
 				nr.restage()
 				return
-			case diff > 0:
-				o -= nr.stage.rep - nr.stage.off
-				nr.off++
+			case o > d:
+				o -= d
+				nr.off += uint32(len(nr.stage.data))
 				nr.restage()
-			case diff < 0:
+			case o < d:
 				nr.stage.off += o
 				return
 			}
@@ -246,43 +255,50 @@ func (nr *NibbleReader) AddOffset(o int32) {
 	}
 }
 
-// GetRaw 메서드는 주어진 오프셋에서 니블 한 개를 읽습니다.
-// 주의: 오프셋은 자동으로 증가되지 않습니다.
-func (nr *NibbleReader) GetRaw(off uint32) (byte, error) {
-	if off >= uint32(len(nr.Data)) {
-		return 0, io.EOF
-	}
-	return (nr.Data[off>>1] >> (((off & 1) ^ 1) << 2)) & 0xf, nil
+// EOF 메서드는 현재 오프셋이 읽을 수 있는 범위 밖인지 확인합니다.
+func (nr *NibbleReader) EOF() bool {
+	return nr.off>>1 >= uint32(len(nr.Data))
 }
 
-// Get 메서드는 현재 오프셋에서 니블 하나를 읽습니다.
+// GetRaw 메서드는 주어진 오프셋에서 니블 한 개를 읽습니다.
+// 주의: 오프셋은 자동으로 증가되지 않습니다.
+func (nr *NibbleReader) GetRaw(off uint32) byte {
+	return (nr.Data[off>>1] >> (((off & 1) ^ 1) << 2)) & 0xf
+}
+
+// Get 메서드는 현재 stage에서 니블 데이터를 읽습니다.
 // 만약 압축된 니블이면 길이 데이터 8니블을 추가로 읽습니다.
 // 주의: 오프셋은 자동으로 증가되지 않습니다.
-func (nr *NibbleReader) Get() ([]byte, error) {
-	n, err := nr.GetRaw(nr.off)
-	if err != nil {
-		return nil, err
+func (nr *NibbleReader) Get() []byte {
+	if len(nr.stage.data) < 1 {
+		nr.restage()
 	}
-	if n>>3 == 1 {
-		b := []byte{n, 0, 0, 0, 0, 0, 0, 0, 0}
-		for i := uint32(1); i < uint32(9); i++ {
-			b[i], err = nr.GetRaw(nr.off + i)
-			if err != nil {
-				return nil, err
-			}
-		}
-		return b, nil
-	}
-	return []byte{n}, nil
+	return nr.stage.data
 }
 
 func (nr *NibbleReader) restage() {
-	b, _ := nr.Get()
-	nr.stage.Data, nr.stage.off = b, 0
-	if len(b) == 1 {
+	b := nr.GetRaw(nr.off)
+	if b>>3 == 1 {
+		nr.stage.data = []byte{
+			b & 0x7,
+			nr.GetRaw(nr.off + 1),
+			nr.GetRaw(nr.off + 2),
+			nr.GetRaw(nr.off + 3),
+			nr.GetRaw(nr.off + 4),
+			nr.GetRaw(nr.off + 5),
+			nr.GetRaw(nr.off + 6),
+			nr.GetRaw(nr.off + 7),
+			nr.GetRaw(nr.off + 8),
+			nr.GetRaw(nr.off + 9),
+		}
+	} else {
+		nr.stage.data = []byte{b}
+	}
+	nr.stage.off = 0
+	if b>>3 == 0 {
 		nr.stage.rep = 1
 	} else {
-		nr.stage.rep = NibblesU32(b[1:])
+		nr.stage.rep = NibblesU32(nr.stage.data[1:])
 	}
 }
 

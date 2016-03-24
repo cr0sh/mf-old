@@ -95,6 +95,8 @@ type MinFuckVM struct {
 	Code []byte
 	Mem  []uint32
 	pc   uint32 // Program counter, 'nibble' offset
+	pcc  uint32 // Program counter('compressed')
+	inc  bool   // In Compressed area (should increment/decrement pcc instead of pc)
 	mp   uint32 // Memory offset
 	bs   uint32 // Braces stack
 	bt   byte   // Braces status; 0: nothing, 1: searching ']', 2: searching '['
