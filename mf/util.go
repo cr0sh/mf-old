@@ -179,7 +179,7 @@ func (n *NibbleWriterOptimized) Flush() {
 	switch {
 	case n.cnt == 0:
 		return
-	case n.cnt < 9:
+	case n.cnt < 9 || n.buf == 4 || n.buf == 5:
 		for i := uint32(0); i < n.cnt; i++ {
 			n.NibbleWriter.Put(n.buf)
 		}
@@ -190,116 +190,6 @@ func (n *NibbleWriterOptimized) Flush() {
 		}
 	}
 	n.cnt = 0
-}
-
-// NibbleReader 구조체는 압축된 nibble slice에서 데이터를 읽습니다.
-type NibbleReader struct {
-	Data  []byte
-	off   uint32
-	stage struct {
-		data []byte
-		rep  uint32
-		off  uint32
-	}
-}
-
-// AddOffset 메서드는 버퍼 오프셋을 증가/감소시킵니다.
-func (nr *NibbleReader) AddOffset(o int32) {
-	switch {
-	case o == 0:
-		return
-	case o < 0:
-		o := uint32(-o)
-		for o > 0 {
-			d := nr.stage.off + 1
-			switch {
-			case o == d:
-				if nr.off > 9 && nr.GetRaw(nr.off-9)>>3 == 1 {
-					nr.off -= 9
-				} else {
-					nr.off--
-				}
-				nr.restage()
-				return
-			case o > d:
-				o -= d
-				if nr.off > 9 && nr.GetRaw(nr.off-9)>>3 == 1 {
-					nr.off -= 9
-				} else {
-					nr.off--
-				}
-				nr.restage()
-			case o < d:
-				nr.stage.off -= o
-				return
-			}
-		}
-	case o > 0:
-		o := uint32(o)
-		for o > 0 {
-			d := nr.stage.rep - nr.stage.off
-			switch {
-			case o == d:
-				nr.off += uint32(len(nr.stage.data))
-				nr.restage()
-				return
-			case o > d:
-				o -= d
-				nr.off += uint32(len(nr.stage.data))
-				nr.restage()
-			case o < d:
-				nr.stage.off += o
-				return
-			}
-		}
-	}
-}
-
-// EOF 메서드는 현재 오프셋이 읽을 수 있는 범위 밖인지 확인합니다.
-func (nr *NibbleReader) EOF() bool {
-	return nr.off>>1 >= uint32(len(nr.Data))
-}
-
-// GetRaw 메서드는 주어진 오프셋에서 니블 한 개를 읽습니다.
-// 주의: 오프셋은 자동으로 증가되지 않습니다.
-func (nr *NibbleReader) GetRaw(off uint32) byte {
-	return (nr.Data[off>>1] >> (((off & 1) ^ 1) << 2)) & 0xf
-}
-
-// Get 메서드는 현재 stage에서 니블 데이터를 읽습니다.
-// 만약 압축된 니블이면 길이 데이터 8니블을 추가로 읽습니다.
-// 주의: 오프셋은 자동으로 증가되지 않습니다.
-func (nr *NibbleReader) Get() []byte {
-	if len(nr.stage.data) < 1 {
-		nr.restage()
-	}
-	return nr.stage.data
-}
-
-func (nr *NibbleReader) restage() {
-	b := nr.GetRaw(nr.off)
-	if b>>3 == 1 {
-		nr.stage.data = []byte{
-			b & 0x7,
-			nr.GetRaw(nr.off + 1),
-			nr.GetRaw(nr.off + 2),
-			nr.GetRaw(nr.off + 3),
-			nr.GetRaw(nr.off + 4),
-			nr.GetRaw(nr.off + 5),
-			nr.GetRaw(nr.off + 6),
-			nr.GetRaw(nr.off + 7),
-			nr.GetRaw(nr.off + 8),
-			nr.GetRaw(nr.off + 9),
-		}
-	} else {
-		nr.stage.data = []byte{b}
-	}
-	nr.stage.off = 0
-	if b>>3 == 0 {
-		nr.stage.rep = 1
-	} else {
-		nr.stage.rep = NibblesU32(nr.stage.data[1:])
-	}
 }
 
 // IOStream 구조체는 stdin/stdout을 에뮬레이션합니다.

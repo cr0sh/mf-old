@@ -190,9 +190,18 @@ func (d *dummyIO) Write(b []byte) (n int, err error) {
 }
 
 func BenchmarkHelloWorld(b *testing.B) {
+	nw := &NibbleWriterOptimized{NibbleWriter: new(NibbleWriter)}
+	for _, b := range []byte(hwBfCode) {
+		op := FromBf(string(b))
+		if op > 7 {
+			continue
+		}
+		nw.Put(op)
+	}
 	dio := new(dummyIO)
+	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		vm := &MinFuckVM{Code: []byte(hwBfCode), Mem: make([]uint32, 64), In: dio, Out: dio}
+		vm := &MinFuckVM{Code: nw.Nibbles, Mem: make([]uint32, 64), In: dio, Out: dio}
 		vm.Run(nil, make(chan error, 1))
 	}
 }

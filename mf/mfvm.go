@@ -158,6 +158,10 @@ func (vm *MinFuckVM) Process() error {
 			return err
 		}
 		vm.RunCodeN(c&7, NibblesU32(nn))
+		// cnt := NibblesU32(nn)
+		// for i := uint32(0); i < cnt; i++ {
+		// 		vm.RunCode(c & 7)
+		// }
 	} else {
 		vm.RunCode(c & 7)
 	}
@@ -188,27 +192,29 @@ func (vm *MinFuckVM) RunCode(nc byte) {
 
 // RunCodeN 함수는 한 개의 니블코드를 N회 VM에서 실행합니다
 func (vm *MinFuckVM) RunCodeN(nc byte, n uint32) {
-	var s bool
-	for i := uint32(0); i < n; i++ {
-		s = s && vm.bracketCheck(nc)
+	if nc == 4 || nc == 5 {
+		panic("[ and ] must NOT be compressed")
 	}
-	if s {
-		switch nc {
-		case 0: // +
-			vm.Mem[vm.mp] += n
-		case 1: // -
-			vm.Mem[vm.mp] -= n
-		case 2: // >
-			vm.mp = (vm.mp + n)
-		case 3: // <
-			vm.mp = (vm.mp - n)
-		case 6: // .
-			vm.Out.Write([]byte{byte(vm.Mem[vm.mp])})
-		case 7: // ,
-			b := make([]byte, 1)
-			vm.In.Read(b)
-			vm.Mem[vm.mp] = uint32(b[0])
+	for i := uint32(0); i < n; i++ {
+		if !vm.bracketCheck(nc) {
+			return
 		}
+	}
+	switch nc {
+	case 0: // +
+		vm.Mem[vm.mp] += n
+	case 1: // -
+		vm.Mem[vm.mp] -= n
+	case 2: // >
+		vm.mp += n
+	case 3: // <
+		vm.mp += n
+	case 6: // .
+		vm.Out.Write([]byte{byte(vm.Mem[vm.mp])})
+	case 7: // ,
+		b := make([]byte, 1)
+		vm.In.Read(b)
+		vm.Mem[vm.mp] = uint32(b[0])
 	}
 }
 
