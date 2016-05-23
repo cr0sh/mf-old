@@ -45,7 +45,7 @@ func FromBfCode(bf string, mem uint32) (mf string) {
 	fd := FileData{memsize: mem}
 	nw := new(NibbleWriterOptimized)
 	nw.NibbleWriter = new(NibbleWriter)
-	for i := 0; i < 4; i++ {
+	for i := 0; i < 8; i++ {
 		nw.Put(2)
 	}
 	nw.Flush()
@@ -55,19 +55,21 @@ func FromBfCode(bf string, mem uint32) (mf string) {
 			continue
 		}
 		if op == 2 || op == 3 {
-			nw.Put(op) // Increment/Decrement pointer twice because MF uses another mem structure
+			for i := 0; i < 8; i++ {
+				nw.Put(op)
+			}
+		} else {
+			nw.Put(op)
 		}
-		nw.Put(op)
 	}
 	fd.code = nw.Nibbles
-	fd.lastNibble = !nw.odd
 	mf = fd.String()
 	return
 }
 
 // ToBfCode 함수는 MinFuck 코드를  Brainfuck 코드로 변환합니다.
 func ToBfCode(mf string) (bf string) {
-	bf = "MinFuck>>>"
+	bf = "MinFuck>>>>>>>>"
 
 	meta, err := ReadFile(bytes.NewBufferString(mf))
 	if err != nil {
@@ -75,16 +77,14 @@ func ToBfCode(mf string) (bf string) {
 	}
 
 	for i := uint32(0); i < meta.memsize; i++ {
-		bf += strings.Repeat("+", int(i+1)) + ">>\n"
+		bf += strings.Repeat("+", int(i+1)) + ">>>>>>>>\n"
 	}
-	bf += strings.Repeat("<", int(meta.memsize)*2+3) + "\n"
+	bf += strings.Repeat("<", int(meta.memsize)*8+8) + "\n"
 
-	for i, mb := range meta.code {
+	for _, mb := range meta.code {
 		nb1, nb2 := (mb>>4)&0xf, mb&0xf
 		bf += ToBf(nb1)
-		if i != len(mf)-1 || meta.lastNibble {
-			bf += ToBf(nb2)
-		}
+		bf += ToBf(nb2)
 	}
 
 	return
@@ -179,11 +179,14 @@ func (n *NibbleWriterOptimized) Flush() {
 	switch {
 	case n.cnt == 0:
 		return
-	case n.cnt < 9 || n.buf == 4 || n.buf == 5:
+	case n.cnt < 9 || n.buf < 4: // no compression
 		for i := uint32(0); i < n.cnt; i++ {
 			n.NibbleWriter.Put(n.buf)
 		}
 	default:
+		if n.NibbleWriter.odd {
+			n.NibbleWriter.Put(12)
+		}
 		n.NibbleWriter.Put(8 | n.buf)
 		for _, nb := range U32Nibbles(n.cnt) {
 			n.NibbleWriter.Put(nb)
@@ -215,4 +218,8 @@ func (i *IOStream) Read(b []byte) (int, error) {
 func (i *IOStream) Write(b []byte) (int, error) {
 	i.Stdout += string(b)
 	return len(b), nil
+}
+
+func populateJump(bfcode string) []uint32 {
+
 }

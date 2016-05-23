@@ -21,9 +21,8 @@ FileData 구조체는 MinFuck 소스 코드의 메타데이터를 정의합니�
  다음 4바이트에는 부호 없는 32비트 정수형으로 코드의 크기를 명시합니다.
 */
 type FileData struct {
-	memsize    uint32
-	code       []byte
-	lastNibble bool // 니블코드 개수가 짝수이면 true
+	memsize uint32
+	code    []byte
 }
 
 // ReadFile 함수는 주어진 파일로부터 정보를 읽어 MinFuck 파일 메타데이터로 변환합니다.
@@ -41,20 +40,14 @@ func ReadFile(f io.Reader) (FileData, error) {
 		return FileData{}, err
 	}
 
-	codebuf := make([]byte, 4)
-	if _, err := f.Read(codebuf); err != nil {
-		return FileData{}, err
-	}
-	codelen := BytesU32(codebuf)
-	code := make([]byte, codelen)
-	if _, err := f.Read(code); err != nil {
+	buf := new(bytes.Buffer)
+	if _, err := io.Copy(buf, f); err != nil {
 		return FileData{}, err
 	}
 
 	return FileData{
-		memsize:    uint32(BytesU32(membuf)),
-		code:       code,
-		lastNibble: codelen&1 == 0,
+		memsize: uint32(BytesU32(membuf)),
+		code:    buf.Bytes(),
 	}, nil
 }
 
@@ -62,7 +55,6 @@ func ReadFile(f io.Reader) (FileData, error) {
 func (f *FileData) String() string {
 	buf := bytes.NewBuffer([]byte(mfMagic))
 	buf.Write(U32Bytes(f.memsize))
-	buf.Write(U32Bytes(uint32(len(f.code))))
 	buf.Write(f.code)
 	return buf.String()
 }
@@ -115,7 +107,7 @@ func VMFile(f io.Reader) (*MinFuckVM, error) {
 	vm := new(MinFuckVM)
 	vm.Mem = make([]uint32, meta.memsize*2+3)
 	for i := uint32(0); i < meta.memsize; i++ {
-		vm.Mem[3+i*2] = i + 1 // Memory init
+		vm.Mem[8+i*2] = i + 1 // Memory init
 	}
 
 	vm.Code = meta.code
@@ -153,15 +145,34 @@ func (vm *MinFuckVM) Process() error {
 		return err
 	}
 	if (c>>3)&1 == 1 {
-		nn, err := vm.nibbleN(8)
-		if err != nil {
-			return err
+		switch c & 7 {
+		case 0, 1, 2, 3:
+			nn, err := vm.nibbleN(8)
+			if err != nil {
+				return err
+			}
+			vm.RunCodeN(c&7, NibblesU32(nn))
+			// cnt := NibblesU32(nn)
+			// for i := uint32(0); i < cnt; i++ {
+			// 		vm.RunCode(c & 7)
+			// }
+		case 4, 5:
+			if (vm.Mem[vm.mp] == 0 && c&7 == 5) ||
+				(vm.Mem[vm.mp] != 0 && c&7 == 4) {
+				return nil
+			}
+			nn, err := vm.nibbleN(16)
+			if err != nil {
+				return err
+			}
+			var jmp uint32
+			for i := 0; i < 8; i++ {
+				jmp |= uint32(nn[i*2])<<4 | uint32(nn[i*2+1])
+				jmp <<= 8
+			}
+			vm.pc = jmp
+			return nil
 		}
-		vm.RunCodeN(c&7, NibblesU32(nn))
-		// cnt := NibblesU32(nn)
-		// for i := uint32(0); i < cnt; i++ {
-		// 		vm.RunCode(c & 7)
-		// }
 	} else {
 		vm.RunCode(c & 7)
 	}
